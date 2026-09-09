@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="theme-color" content="#0f1117"/>
+  <title>Winnipeg Visit</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div id="app">
+  <div id="screens">
+
+    <!-- 1: AGENDA -->
+    <div id="agenda" class="screen">
+      <div class="screen-header">
+        <div class="screen-title">Meetings</div>
+        <button class="header-btn" onclick="openAddMeeting()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add
+        </button>
+      </div>
+      <div class="scroll-area"><div id="agenda-list"></div></div>
+    </div>
+
+    <!-- 1b: MEETING DETAIL (full-screen inner view) -->
+    <div id="screen-meeting" class="screen">
+      <div class="screen-back">
+        <button class="back-btn" onclick="exitMeeting()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Meetings
+        </button>
+      </div>
+      <div class="md-header">
+        <div class="md-title" id="md-title"></div>
+        <div class="md-subtitle" id="md-subtitle"></div>
+      </div>
+      <div class="md-status-bar" id="md-status-bar"></div>
+
+      <div class="scroll-area" style="padding-top:0;">
+
+        <!-- Notes -->
+        <div class="md-section">
+          <div class="md-section-label">Notes & key outcomes</div>
+          <textarea class="md-notes" id="md-notes" placeholder="What was discussed, agreed, follow-up actions...&#10;&#10;Type freely — saved automatically."></textarea>
+        </div>
+
+        <!-- Contact -->
+        <div class="md-section">
+          <div class="md-section-label">Contact</div>
+          <div id="md-contact-box"></div>
+        </div>
+
+        <!-- Photos -->
+        <div class="md-section">
+          <div class="md-section-label">Photos</div>
+          <div class="media-grid" id="md-photo-grid"></div>
+          <input type="file" id="md-photo-input" accept="image/*" capture="environment" style="display:none" onchange="handleMeetingPhoto(this)"/>
+        </div>
+
+        <!-- Voice -->
+        <div class="md-section">
+          <div class="md-section-label">Voice notes</div>
+          <div id="md-rec-indicator" class="recording-indicator" style="display:none;"><div class="rec-dot"></div>Recording...</div>
+          <button class="btn-add" id="md-rec-btn" onclick="toggleMeetingRecording()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v4M8 23h8"/></svg>
+            Record voice note
+          </button>
+          <div id="md-audio-list" style="margin-top:8px;"></div>
+        </div>
+
+      </div><!-- /scroll-area -->
+    </div><!-- /screen-meeting -->
+
+    <!-- 2: CONTACTS -->
+    <div id="contacts" class="screen">
+      <div class="screen-header">
+        <div class="screen-title">Contacts</div>
+        <button class="header-btn" onclick="openAddContact()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add
+        </button>
+      </div>
+      <div class="scroll-area"><div id="contacts-list"></div></div>
+    </div>
+
+    <!-- 3: DATA -->
+    <div id="data" class="screen">
+      <div class="screen-header">
+        <div class="screen-title">Data</div>
+        <button class="header-btn" onclick="exportPDF()" style="background:var(--green);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Full PDF
+        </button>
+      </div>
+      <div class="scroll-area">
+        <div class="section-head">Labour Market — RF / Telecom</div>
+        <div id="job-list"></div>
+        <div class="section-head">Housing — Neighbourhoods</div>
+        <div id="district-list"></div>
+        <div class="section-head">Family Budget (CAD / month)</div>
+        <div class="card">
+          <table class="budget-table"><tbody id="budget-body"></tbody></table>
+          <div class="budget-total"><span>Total</span><span id="budget-total"></span></div>
+        </div>
+        <button class="btn-add" onclick="openModal('modal-add-budget')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M12 5v14M5 12h14"/></svg>Add budget item
+        </button>
+      </div>
+    </div>
+
+    <!-- 4: PRICES -->
+    <div id="scanner" class="screen">
+      <div class="screen-header">
+        <div class="screen-title">Prices</div>
+        <button class="header-btn" onclick="openScanModal(null)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M12 5v14M5 12h14"/></svg>Add
+        </button>
+      </div>
+      <div class="scroll-area">
+        <div class="scan-hero" onclick="document.getElementById('scan-input').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <div class="scan-hero-title">Photograph a price tag</div>
+          <div class="scan-hero-sub">Opens camera — then enter name and price</div>
+        </div>
+        <input type="file" id="scan-input" accept="image/*" capture="environment" style="display:none" onchange="handleScanInput(this)"/>
+        <div class="scanner-summary">
+          <div class="sum-card"><div class="sum-val" id="scan-stores">0</div><div class="sum-lbl">Stores</div></div>
+          <div class="sum-card"><div class="sum-val" id="scan-items">0</div><div class="sum-lbl">Items</div></div>
+          <div class="sum-card"><div class="sum-val" id="scan-total">$0</div><div class="sum-lbl">Total</div></div>
+        </div>
+        <div id="price-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /screens -->
+
+  <!-- BOTTOM NAV -->
+  <nav id="navbar">
+    <button class="nav-tab active" data-tab="agenda" onclick="setTab('agenda')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Meetings
+    </button>
+    <button class="nav-tab" data-tab="contacts" onclick="setTab('contacts')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Contacts
+    </button>
+    <button class="nav-tab" data-tab="data" onclick="setTab('data')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Data
+    </button>
+    <button class="nav-tab" data-tab="scanner" onclick="setTab('scanner')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Prices
+    </button>
+  </nav>
+</div>
+
+<!-- ══ MODALS ══ -->
+
+<div id="modal-add-meeting" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">New meeting</div>
+  <div class="form-group"><label class="form-label">Name *</label><input id="am-name" class="form-input" placeholder="Bell MTS — RF Engineer"/></div>
+  <div class="form-group"><label class="form-label">Organisation</label><input id="am-org" class="form-input" placeholder="Bell MTS"/></div>
+  <div class="form-row">
+    <div class="form-group"><label class="form-label">Date</label><input id="am-date" type="date" class="form-input"/></div>
+    <div class="form-group"><label class="form-label">Time</label><input id="am-time" type="time" class="form-input"/></div>
+  </div>
+  <div class="form-group"><label class="form-label">Initial notes</label><textarea id="am-notes" class="form-input" placeholder="What this meeting is about..."></textarea></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-meeting')">Cancel</button><button class="btn-primary" onclick="saveAddMeeting()">Add</button></div>
+</div></div>
+
+<div id="modal-add-contact" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">New contact</div>
+  <div class="form-group"><label class="form-label">Name *</label><input id="ac-name" class="form-input" placeholder="John Smith"/></div>
+  <div class="form-group"><label class="form-label">Organisation</label><input id="ac-org" class="form-input" placeholder="Bell MTS"/></div>
+  <div class="form-group"><label class="form-label">Role / Title</label><input id="ac-role" class="form-input" placeholder="Senior RF Engineer"/></div>
+  <div class="form-group"><label class="form-label">Phone</label><input id="ac-phone" type="tel" class="form-input" placeholder="+1 (204) 555-0000"/></div>
+  <div class="form-group"><label class="form-label">Email</label><input id="ac-email" type="email" class="form-input" placeholder="name@company.com"/></div>
+  <div class="form-group"><label class="form-label">LinkedIn</label><input id="ac-linkedin" class="form-input" placeholder="linkedin.com/in/..."/></div>
+  <div class="form-group"><label class="form-label">Key takeaways</label><textarea id="ac-notes" class="form-input" placeholder="What was agreed, follow-up actions..."></textarea></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-contact')">Cancel</button><button class="btn-primary" onclick="saveAddContact()">Add</button></div>
+</div></div>
+
+<div id="modal-contact-detail" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">Contact</div>
+  <div class="form-group"><label class="form-label">Name</label><input id="cd-name" class="form-input"/></div>
+  <div class="form-group"><label class="form-label">Organisation</label><input id="cd-org" class="form-input"/></div>
+  <div class="form-group"><label class="form-label">Role / Title</label><input id="cd-role" class="form-input"/></div>
+  <div class="form-group"><label class="form-label">Phone</label><input id="cd-phone" type="tel" class="form-input"/></div>
+  <div class="form-group"><label class="form-label">Email</label><input id="cd-email" type="email" class="form-input"/></div>
+  <div class="form-group"><label class="form-label">LinkedIn</label><input id="cd-linkedin" class="form-input"/></div>
+  <div class="form-group"><label class="form-label">Key takeaways</label><textarea id="cd-notes" class="form-input" rows="4"></textarea></div>
+  <div class="modal-actions"><button class="btn-danger" id="cd-delete">Delete</button><button class="btn-primary" id="cd-save">Save</button></div>
+</div></div>
+
+<div id="modal-add-job" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">Company / Job</div>
+  <div class="form-group"><label class="form-label">Company *</label><input id="aj-company" class="form-input" placeholder="Bell MTS"/></div>
+  <div class="form-group"><label class="form-label">Salary range</label><input id="aj-salary" class="form-input" placeholder="$85,000–105,000 CAD"/></div>
+  <div class="form-group"><label class="form-label">Requirements</label><input id="aj-requirements" class="form-input" placeholder="P.Eng., LTE/5G..."/></div>
+  <div class="form-group"><label class="form-label">Notes</label><textarea id="aj-notes" class="form-input"></textarea></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-job')">Cancel</button><button class="btn-primary" onclick="saveAddJob()">Add</button></div>
+</div></div>
+
+<div id="modal-district" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">Neighbourhood</div>
+  <div class="form-group"><label class="form-label">Name *</label><input id="dd-name" class="form-input" placeholder="Tuxedo"/></div>
+  <div class="form-group"><label class="form-label">Rent range</label><input id="dd-rent" class="form-input" placeholder="$2,400–2,800"/></div>
+  <div class="form-group"><label class="form-label">Housing type</label><input id="dd-type" class="form-input" placeholder="3-bed townhouse"/></div>
+  <div class="form-group"><label class="form-label">Pros (comma-separated)</label><input id="dd-pros" class="form-input" placeholder="Good schools, Quiet"/></div>
+  <div class="form-group"><label class="form-label">Cons (comma-separated)</label><input id="dd-cons" class="form-input" placeholder="Expensive, No transit"/></div>
+  <div class="modal-actions"><button class="btn-danger" id="dd-delete">Delete</button><button class="btn-primary" id="dd-save">Save</button></div>
+</div></div>
+
+<div id="modal-add-budget" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">Budget item</div>
+  <div class="form-group"><label class="form-label">Item</label><input id="ab-item" class="form-input" placeholder="Childcare"/></div>
+  <div class="form-group"><label class="form-label">Amount (CAD/month)</label><input id="ab-amount" type="number" step="0.01" class="form-input" placeholder="300"/></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-budget')">Cancel</button><button class="btn-primary" onclick="saveAddBudget()">Add</button></div>
+</div></div>
+
+<div id="modal-add-price" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">Add price</div>
+  <img id="ap-preview" src="" alt="price tag" style="width:100%;border-radius:8px;margin-bottom:12px;display:none;max-height:200px;object-fit:contain;background:var(--bg3);"/>
+  <div class="form-group"><label class="form-label">Item name *</label><input id="ap-name" class="form-input" placeholder="Milk 4L"/></div>
+  <div class="form-group"><label class="form-label">Price (CAD) *</label><input id="ap-price" type="number" step="0.01" min="0" class="form-input" placeholder="5.49"/></div>
+  <div class="form-group"><label class="form-label">Store</label><input id="ap-store" class="form-input" placeholder="Costco"/></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-price')">Cancel</button><button class="btn-primary" onclick="savePrice()">Save</button></div>
+</div></div>
+
+<div id="modal-link-contact" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title">Link contact</div>
+  <div id="link-contact-list"></div>
+  <div style="margin-top:14px;"><button class="btn-cancel" style="width:100%;" onclick="closeModal('modal-link-contact')">Cancel</button></div>
+</div></div>
+
+<div id="modal-view-photo" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal" style="padding-top:12px;">
+  <img id="view-img" src="" alt="" style="width:100%;border-radius:10px;margin-bottom:12px;max-height:60dvh;object-fit:contain;"/>
+  <div id="view-label" style="font-size:14px;color:var(--text2);margin-bottom:12px;"></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-view-photo')">Close</button><button class="btn-danger" id="view-delete">Delete</button></div>
+</div></div>
+
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+<script>
+function saveAddBudget() {
+  const item = document.getElementById('ab-item').value.trim();
+  const amount = parseFloat(document.getElementById('ab-amount').value);
+  if (!item || isNaN(amount)) { toast('Fill in all fields'); return; }
+  state.budget.push({ id: DB.id(), item, amount });
+  DB.set('budget', state.budget);
+  closeModal('modal-add-budget');
+  renderBudget();
+  toast('Budget item added');
+}
+</script>
+</body>
+</html>
