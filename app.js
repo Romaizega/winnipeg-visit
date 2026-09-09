@@ -3,20 +3,77 @@
 // ══════════════════════════════════════════════
 //  STORAGE
 // ══════════════════════════════════════════════
+const DB_KEYS = ['meetings','contacts','districts','budget','jobData','prices'];
 const DB = {
-  has(key) { return localStorage.getItem(key) !== null; },
-  get(key, def=[]) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } },
-  set(key, val) {
-    try {
-      localStorage.setItem(key, JSON.stringify(val));
-      return true;
-    } catch (err) {
-      console.error(`Failed to save ${key}:`, err);
-      if (err?.name === 'QuotaExceededError') {
-        setTimeout(() => toast('Storage is full. Large photos/audio need to be removed or compressed.'), 0);
-      }
-      return false;
+  _db: null,
+  _cache: Object.create(null),
+  _ready: false,
+  async init() {
+    this._db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('WinnipegVisitDB', 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('appData')) db.createObjectStore('appData');
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    for (const key of DB_KEYS) {
+      const value = await this._read(key);
+      if (value !== undefined) this._cache[key] = value;
     }
+    // One-time migration from the old localStorage version.
+    for (const key of DB_KEYS) {
+      if (!(key in this._cache) && localStorage.getItem(key) !== null) {
+        try {
+          const value = JSON.parse(localStorage.getItem(key));
+          this._cache[key] = value;
+          await this._write(key, value);
+        } catch (err) { console.warn('Migration skipped for', key, err); }
+      }
+    }
+    this._ready = true;
+  },
+  _read(key) {
+    return new Promise((resolve, reject) => {
+      const tx = this._db.transaction('appData', 'readonly');
+      const req = tx.objectStore('appData').get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  _write(key, value) {
+    return new Promise((resolve, reject) => {
+      const tx = this._db.transaction('appData', 'readwrite');
+      tx.objectStore('appData').put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  },
+  has(key) { return Object.prototype.hasOwnProperty.call(this._cache, key); },
+  get(key, def=[]) { return this.has(key) ? this._cache[key] : def; },
+  set(key, val) {
+    this._cache[key] = val;
+    if (!this._db) return false;
+    this._write(key, val).catch(err => {
+      console.error(`Failed to save ${key} to IndexedDB:`, err);
+      setTimeout(() => toast('Could not save data on this device.'), 0);
+    });
+    return true;
+  },
+  async setAsync(key, val) {
+    this._cache[key] = val;
+    await this._write(key, val);
+  },
+  async clearAll() {
+    await new Promise((resolve, reject) => {
+      const tx = this._db.transaction('appData', 'readwrite');
+      tx.objectStore('appData').clear();
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    this._cache = Object.create(null);
   },
   id() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 };
@@ -77,9 +134,9 @@ async function compactStoredImages() {
 //  STATE
 // ══════════════════════════════════════════════
 const state = {
-  meetings:  DB.get('meetings'),
-  contacts:  DB.get('contacts'),
-  districts: DB.get('districts'),
+  meetings:  [],
+  contacts:  [],
+  districts: [],
   budget:    DB.get('budget'),
   jobData:   DB.get('jobData'),
   prices:    DB.get('prices'),
@@ -1196,10 +1253,62 @@ const SVG = {
 const renders = { agenda:renderAgenda, contacts:renderContacts, data:renderData, scanner:renderScanner };
 
 // ══════════════════════════════════════════════
+//  BACKUP / RESTORE
+// ══════════════════════════════════════════════
+function exportBackup() {
+  const payload = {
+    app: 'Winnipeg Visit',
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    data: Object.fromEntries(DB_KEYS.map(key => [key, state[key]]))
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `winnipeg-visit-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Backup exported');
+}
+
+function importBackupFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const payload = JSON.parse(reader.result);
+      if (!payload || payload.app !== 'Winnipeg Visit' || !payload.data) throw new Error('Invalid backup');
+      if (!confirm('Restore this backup? Current app data will be replaced.')) return;
+      for (const key of DB_KEYS) {
+        const value = Array.isArray(payload.data[key]) ? payload.data[key] : [];
+        await DB.setAsync(key, value);
+        state[key] = value;
+      }
+      seedData();
+      setTab('agenda');
+      toast('Backup restored');
+    } catch (err) {
+      console.error(err);
+      toast('This backup file could not be restored');
+    } finally { input.value = ''; }
+  };
+  reader.readAsText(file);
+}
+
+// ══════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  try {
+    await DB.init();
+    for (const key of DB_KEYS) state[key] = DB.get(key, []);
+  } catch (err) {
+    console.error('IndexedDB init failed:', err);
+    toast('Local database could not be opened');
+  }
   seedData();
   await compactStoredImages();
   setTab('agenda');
