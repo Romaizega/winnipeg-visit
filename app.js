@@ -4,10 +4,74 @@
 //  STORAGE
 // ══════════════════════════════════════════════
 const DB = {
+  has(key) { return localStorage.getItem(key) !== null; },
   get(key, def=[]) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } },
-  set(key, val) { localStorage.setItem(key, JSON.stringify(val)); },
+  set(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      return true;
+    } catch (err) {
+      console.error(`Failed to save ${key}:`, err);
+      if (err?.name === 'QuotaExceededError') {
+        setTimeout(() => toast('Storage is full. Large photos/audio need to be removed or compressed.'), 0);
+      }
+      return false;
+    }
+  },
   id() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 };
+
+// Resize photos before putting them into localStorage.
+// A phone photo can be several MB; localStorage is usually only ~5-10 MB total.
+function compressImageFile(file, maxSize = 1400, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('Could not read image'));
+    reader.onload = () => compressImageDataUrl(reader.result, maxSize, quality).then(resolve, reject);
+    reader.readAsDataURL(file);
+  });
+}
+
+function compressImageDataUrl(dataUrl, maxSize = 1400, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    if (!dataUrl || !String(dataUrl).startsWith('data:image/')) { resolve(dataUrl); return; }
+    const img = new Image();
+    img.onerror = () => reject(new Error('Could not decode image'));
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+      const width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+      const height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      // JPEG is dramatically smaller than an original phone PNG/HEIC conversion.
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = dataUrl;
+  });
+}
+
+async function compactStoredImages() {
+  let meetingsDirty = false;
+  for (const m of state.meetings) {
+    for (const photo of (m.photos || [])) {
+      if (photo?.data?.startsWith('data:image/') && photo.data.length > 350000) {
+        try { photo.data = await compressImageDataUrl(photo.data); meetingsDirty = true; } catch {}
+      }
+    }
+  }
+  if (meetingsDirty) DB.set('meetings', state.meetings);
+
+  let pricesDirty = false;
+  for (const price of state.prices) {
+    if (price?.photo?.startsWith('data:image/') && price.photo.length > 350000) {
+      try { price.photo = await compressImageDataUrl(price.photo); pricesDirty = true; } catch {}
+    }
+  }
+  if (pricesDirty) DB.set('prices', state.prices);
+}
+
 
 // ══════════════════════════════════════════════
 //  STATE
@@ -35,7 +99,7 @@ const state = {
 //  SEED DATA
 // ══════════════════════════════════════════════
 function seedData() {
-  if (!state.meetings.length) {
+  if (!DB.has('meetings')) {
     state.meetings = [
       { id: DB.id(), name: 'Asper Campus, U of M',          org: 'University of Manitoba',      date: '2025-07-14', time: '10:00', status: 'done',  notes: 'Toured campus and infrastructure, met with coordinator.', photos: [], audios: [], contactId: null, icon: '🏛️' },
       { id: DB.id(), name: 'Manitoba Start',                 org: 'MPNP Office',                 date: '2025-07-14', time: '13:30', status: 'done',  notes: 'Discussed Settlement Plan. Need labour market + housing data in report.', photos: [], audios: [], contactId: null, icon: '🏛️' },
@@ -53,14 +117,14 @@ function seedData() {
   });
   if (dirty) DB.set('meetings', state.meetings);
 
-  if (!state.contacts.length) {
+  if (!DB.has('contacts')) {
     state.contacts = [
       { id: DB.id(), name: 'David Leblanc', org: 'Bell MTS',       role: 'Senior RF Engineer',  phone: '+1 (204) 555-0134', email: 'd.leblanc@bellmts.ca',        linkedin: 'linkedin.com/in/dleblanc', notes: 'Open to referral. Wants CV by Friday. LTE/5G roles open.', color: '#3b82f6' },
       { id: DB.id(), name: 'Sarah Rempel',  org: 'Manitoba Start', role: 'Immigration Advisor', phone: '+1 (204) 555-0288', email: 'srempel@manitobastart.com', linkedin: '',                        notes: 'Submit Settlement Plan after the report.', color: '#22c55e' }
     ];
     DB.set('contacts', state.contacts);
   }
-  if (!state.districts.length) {
+  if (!DB.has('districts')) {
     state.districts = [
       { id: DB.id(), name: 'Tuxedo',        rent: '$2,400–2,800', type: '3-bed townhouse', pros: ['Good schools','Quiet','Safe'],           cons: ['Expensive','No BRT'] },
       { id: DB.id(), name: 'River Heights', rent: '$1,900–2,300', type: '2-bed apartment', pros: ['Close to downtown','Parks','Bike lanes'], cons: ['Paid parking','Noisier'] },
@@ -68,7 +132,7 @@ function seedData() {
     ];
     DB.set('districts', state.districts);
   }
-  if (!state.budget.length) {
+  if (!DB.has('budget')) {
     state.budget = [
       { id: DB.id(), item: 'Rent (avg)',              amount: 2100 },
       { id: DB.id(), item: 'Groceries',               amount: 800  },
@@ -80,14 +144,14 @@ function seedData() {
     ];
     DB.set('budget', state.budget);
   }
-  if (!state.jobData.length) {
+  if (!DB.has('jobData')) {
     state.jobData = [
       { id: DB.id(), company: 'Bell MTS',             salary: '$85,000–105,000', requirements: 'P.Eng., LTE/5G, Huawei/Nokia',    notes: 'Actively hiring RF Optimization roles' },
       { id: DB.id(), company: 'Rogers Communications',salary: '$90,000–115,000', requirements: 'P.Eng., Antenna design, RF planning', notes: 'Downtown office, hybrid format' }
     ];
     DB.set('jobData', state.jobData);
   }
-  if (!state.prices.length) {
+  if (!DB.has('prices')) {
     state.prices = [
       { id: DB.id(), store: 'Costco', name: 'Milk 4L',             price: 5.49,   currency: 'CAD', date: '2025-07-14', photo: null },
       { id: DB.id(), store: 'Sobeys', name: 'Chicken breast 1kg',  price: 12.99,  currency: 'CAD', date: '2025-07-14', photo: null },
@@ -329,19 +393,22 @@ function renderMeetingPhotos(m) {
     </div>`;
 }
 
-function handleMeetingPhoto(input) {
+async function handleMeetingPhoto(input) {
   const file = input.files[0]; if (!file) return;
   const m = state.meetings.find(x => x.id === state.currentMeetingId); if (!m) return;
-  const reader = new FileReader();
-  reader.onload = e => {
+  try {
+    const data = await compressImageFile(file);
     if (!m.photos) m.photos = [];
-    m.photos.push({ data: e.target.result, label: file.name, date: new Date().toLocaleDateString('en-CA') });
-    DB.set('meetings', state.meetings);
+    m.photos.push({ data, label: file.name, date: new Date().toLocaleDateString('en-CA') });
+    if (!DB.set('meetings', state.meetings)) { m.photos.pop(); return; }
     renderMeetingPhotos(m);
     toast('Photo added');
-  };
-  reader.readAsDataURL(file);
-  input.value = '';
+  } catch (err) {
+    console.error(err);
+    toast('Could not read photo');
+  } finally {
+    input.value = '';
+  }
 }
 
 function viewMeetingPhoto(meetingId, idx) {
@@ -890,18 +957,36 @@ function deletePrice() {
   toast('Item deleted');
 }
 
-function handleScanInput(input) {
+async function handleScanInput(input) {
   const file = input.files[0];
   if (!file) return;
   if (!file.type.startsWith('image/')) { toast('Select an image file'); input.value=''; return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    const result = e.target.result;
-    input.value = '';
+  try {
+    const result = await compressImageFile(file);
     openScanModal(result);
-  };
-  reader.onerror = () => { toast('Could not read photo'); input.value=''; };
-  reader.readAsDataURL(file);
+  } catch (err) {
+    console.error(err);
+    toast('Could not read photo');
+  } finally {
+    input.value = '';
+  }
+}
+
+async function handlePricePhotoInput(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Select an image file'); input.value=''; return; }
+  try {
+    state.lastScanImage = await compressImageFile(file);
+    const prev = document.getElementById('ap-preview');
+    prev.src = state.lastScanImage;
+    prev.style.display = 'block';
+  } catch (err) {
+    console.error(err);
+    toast('Could not read photo');
+  } finally {
+    input.value = '';
+  }
 }
 
 function savePrice() {
@@ -1113,8 +1198,9 @@ const renders = { agenda:renderAgenda, contacts:renderContacts, data:renderData,
 // ══════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
   seedData();
+  await compactStoredImages();
   setTab('agenda');
 });
