@@ -641,14 +641,58 @@ function renderData() { renderJobData(); renderDistricts(); renderBudget(); }
 
 function renderJobData() {
   document.getElementById('job-list').innerHTML = state.jobData.map(j=>`
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;margin-bottom:7px;">
+    <div class="card" onclick="openJobDetail('${j.id}')" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
         <div style="font-size:14px;font-weight:600;">${esc(j.company)}</div>
-        <div style="font-size:13px;color:var(--green);font-weight:600;">${esc(j.salary)}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="font-size:13px;color:var(--green);font-weight:600;">${esc(j.salary)}</div>
+          <span style="font-size:11px;color:var(--text3);">✎</span>
+        </div>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:5px;">${esc(j.requirements)}</div>
       ${j.notes?`<div style="font-size:12px;color:var(--text3);">${esc(j.notes)}</div>`:''}
     </div>`).join('') + `<button class="btn-add" onclick="openAddJob()">${SVG.plus} Add company</button>`;
+}
+
+function openJobDetail(id) {
+  const j = state.jobData.find(x=>x.id===id); if(!j) return;
+  document.getElementById('aj-company').value = j.company;
+  document.getElementById('aj-salary').value = j.salary;
+  document.getElementById('aj-requirements').value = j.requirements;
+  document.getElementById('aj-notes').value = j.notes || '';
+  // switch modal to edit mode
+  const modal = document.getElementById('modal-add-job');
+  modal.querySelector('.modal-title').textContent = 'Edit company';
+  const actions = modal.querySelector('.modal-actions');
+  actions.innerHTML = `
+    <button class="btn-danger" onclick="deleteJob('${id}')">Delete</button>
+    <button class="btn-primary" onclick="saveJobDetail('${id}')">Save</button>`;
+  openModal('modal-add-job');
+}
+
+function saveJobDetail(id) {
+  const j = state.jobData.find(x=>x.id===id); if(!j) return;
+  j.company = document.getElementById('aj-company').value.trim();
+  j.salary = document.getElementById('aj-salary').value.trim();
+  j.requirements = document.getElementById('aj-requirements').value.trim();
+  j.notes = document.getElementById('aj-notes').value.trim();
+  DB.set('jobData', state.jobData);
+  resetJobModal();
+  closeModal('modal-add-job'); renderData(); toast('Company saved');
+}
+
+function deleteJob(id) {
+  state.jobData = state.jobData.filter(x=>x.id!==id);
+  DB.set('jobData', state.jobData);
+  resetJobModal();
+  closeModal('modal-add-job'); renderData(); toast('Company deleted');
+}
+
+function resetJobModal() {
+  document.getElementById('modal-add-job').querySelector('.modal-title').textContent = 'Company / Job';
+  document.getElementById('modal-add-job').querySelector('.modal-actions').innerHTML = `
+    <button class="btn-cancel" onclick="closeModal('modal-add-job')">Cancel</button>
+    <button class="btn-primary" onclick="saveAddJob()">Add</button>`;
 }
 
 function renderDistricts() {
@@ -669,7 +713,11 @@ function renderBudget() {
   document.getElementById('budget-total').textContent = '$'+total.toLocaleString();
 }
 
-function openAddJob() { ['aj-company','aj-salary','aj-requirements','aj-notes'].forEach(id=>document.getElementById(id).value=''); openModal('modal-add-job'); }
+function openAddJob() {
+  ['aj-company','aj-salary','aj-requirements','aj-notes'].forEach(id=>document.getElementById(id).value='');
+  resetJobModal();
+  openModal('modal-add-job');
+}
 function saveAddJob() {
   const company = document.getElementById('aj-company').value.trim(); if(!company){toast('Enter company name');return;}
   state.jobData.push({id:DB.id(),company,salary:document.getElementById('aj-salary').value.trim(),requirements:document.getElementById('aj-requirements').value.trim(),notes:document.getElementById('aj-notes').value.trim()});
@@ -748,10 +796,17 @@ function openScanModal(photoData) {
 }
 
 function handleScanInput(input) {
-  const file=input.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=e=>openScanModal(e.target.result);
-  reader.readAsDataURL(file); input.value='';
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Select an image file'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = e.target.result;
+    input.value = '';
+    openScanModal(result);
+  };
+  reader.onerror = () => { toast('Could not read photo'); input.value=''; };
+  reader.readAsDataURL(file);
 }
 
 function savePrice() {
