@@ -226,6 +226,11 @@
 <div id="modal-add-price" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
   <div class="modal-title" id="ap-modal-title">Add price</div>
   <img id="ap-preview" src="" alt="price tag" style="width:100%;border-radius:8px;margin-bottom:12px;display:none;max-height:200px;object-fit:contain;background:var(--bg3);"/>
+  <input type="file" id="ap-photo-input" accept="image/*" style="display:none" onchange="handlePricePhotoInput(this)"/>
+  <button type="button" class="btn-add" style="margin:0 0 12px;" onclick="document.getElementById('ap-photo-input').click()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:15px;height:15px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    Choose / replace photo
+  </button>
   <div class="form-group"><label class="form-label">Item name *</label><input id="ap-name" class="form-input" placeholder="Milk 4L"/></div>
   <div class="form-group"><label class="form-label">Price (CAD) *</label><input id="ap-price" type="number" step="0.01" min="0" class="form-input" placeholder="5.49"/></div>
   <div class="form-group"><label class="form-label">Store</label><input id="ap-store" class="form-input" placeholder="Costco"/></div>
