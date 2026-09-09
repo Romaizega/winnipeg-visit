@@ -639,15 +639,16 @@ function saveAddContact() {
 // ══════════════════════════════════════════════
 function renderData() { renderJobData(); renderDistricts(); renderBudget(); }
 
+// edit state
+let _editJobId = null;
+let _editPriceId = null;
+
 function renderJobData() {
   document.getElementById('job-list').innerHTML = state.jobData.map(j=>`
     <div class="card" onclick="openJobDetail('${j.id}')" style="cursor:pointer;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
         <div style="font-size:14px;font-weight:600;">${esc(j.company)}</div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="font-size:13px;color:var(--green);font-weight:600;">${esc(j.salary)}</div>
-          <span style="font-size:11px;color:var(--text3);">✎</span>
-        </div>
+        <div style="font-size:13px;color:var(--green);font-weight:600;">${esc(j.salary)} <span style="color:var(--text3);font-size:11px;">✎</span></div>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:5px;">${esc(j.requirements)}</div>
       ${j.notes?`<div style="font-size:12px;color:var(--text3);">${esc(j.notes)}</div>`:''}
@@ -655,44 +656,56 @@ function renderJobData() {
 }
 
 function openJobDetail(id) {
+  _editJobId = id;
   const j = state.jobData.find(x=>x.id===id); if(!j) return;
   document.getElementById('aj-company').value = j.company;
   document.getElementById('aj-salary').value = j.salary;
-  document.getElementById('aj-requirements').value = j.requirements;
+  document.getElementById('aj-requirements').value = j.requirements || '';
   document.getElementById('aj-notes').value = j.notes || '';
-  // switch modal to edit mode
-  const modal = document.getElementById('modal-add-job');
-  modal.querySelector('.modal-title').textContent = 'Edit company';
-  const actions = modal.querySelector('.modal-actions');
-  actions.innerHTML = `
-    <button class="btn-danger" onclick="deleteJob('${id}')">Delete</button>
-    <button class="btn-primary" onclick="saveJobDetail('${id}')">Save</button>`;
+  document.getElementById('aj-modal-title').textContent = 'Edit company';
+  document.getElementById('aj-btn-delete').style.display = '';
+  document.getElementById('aj-btn-save').textContent = 'Save';
   openModal('modal-add-job');
 }
 
-function saveJobDetail(id) {
-  const j = state.jobData.find(x=>x.id===id); if(!j) return;
-  j.company = document.getElementById('aj-company').value.trim();
-  j.salary = document.getElementById('aj-salary').value.trim();
-  j.requirements = document.getElementById('aj-requirements').value.trim();
-  j.notes = document.getElementById('aj-notes').value.trim();
-  DB.set('jobData', state.jobData);
-  resetJobModal();
-  closeModal('modal-add-job'); renderData(); toast('Company saved');
+function openAddJob() {
+  _editJobId = null;
+  ['aj-company','aj-salary','aj-requirements','aj-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('aj-modal-title').textContent = 'Company / Job';
+  document.getElementById('aj-btn-delete').style.display = 'none';
+  document.getElementById('aj-btn-save').textContent = 'Add';
+  openModal('modal-add-job');
 }
 
-function deleteJob(id) {
-  state.jobData = state.jobData.filter(x=>x.id!==id);
-  DB.set('jobData', state.jobData);
-  resetJobModal();
-  closeModal('modal-add-job'); renderData(); toast('Company deleted');
+function saveAddJob() {
+  const company = document.getElementById('aj-company').value.trim();
+  if(!company){toast('Enter company name');return;}
+  const salary = document.getElementById('aj-salary').value.trim();
+  const requirements = document.getElementById('aj-requirements').value.trim();
+  const notes = document.getElementById('aj-notes').value.trim();
+  if (_editJobId) {
+    const j = state.jobData.find(x=>x.id===_editJobId);
+    if (j) { j.company=company; j.salary=salary; j.requirements=requirements; j.notes=notes; }
+    toast('Company saved');
+  } else {
+    state.jobData.push({id:DB.id(),company,salary,requirements,notes});
+    toast('Company added');
+  }
+  DB.set('jobData',state.jobData);
+  _editJobId=null;
+  closeModal('modal-add-job');
+  renderData();
 }
 
-function resetJobModal() {
-  document.getElementById('modal-add-job').querySelector('.modal-title').textContent = 'Company / Job';
-  document.getElementById('modal-add-job').querySelector('.modal-actions').innerHTML = `
-    <button class="btn-cancel" onclick="closeModal('modal-add-job')">Cancel</button>
-    <button class="btn-primary" onclick="saveAddJob()">Add</button>`;
+function deleteJob() {
+  if(!_editJobId) return;
+  if(!confirm('Delete this company?')) return;
+  state.jobData = state.jobData.filter(x=>x.id!==_editJobId);
+  DB.set('jobData',state.jobData);
+  _editJobId=null;
+  closeModal('modal-add-job');
+  renderData();
+  toast('Company deleted');
 }
 
 function renderDistricts() {
@@ -707,10 +720,66 @@ function renderDistricts() {
     </div>`).join('') + `<button class="btn-add" onclick="openAddDistrict()">${SVG.plus} Add neighbourhood</button>`;
 }
 
+let _editBudgetId = null;
+
 function renderBudget() {
   const total = state.budget.reduce((s,b)=>s+Number(b.amount),0);
-  document.getElementById('budget-body').innerHTML = state.budget.map(b=>`<tr><td style="color:var(--text2);">${esc(b.item)}</td><td>$${Number(b.amount).toLocaleString()}</td></tr>`).join('');
+  document.getElementById('budget-body').innerHTML = state.budget.map(b=>`
+    <tr onclick="openBudgetDetail('${b.id}')" style="cursor:pointer;">
+      <td style="color:var(--text2);">${esc(b.item)} <span style="color:var(--text3);font-size:11px;">✎</span></td>
+      <td style="text-align:right;font-weight:500;">$${Number(b.amount).toLocaleString()}</td>
+    </tr>`).join('');
   document.getElementById('budget-total').textContent = '$'+total.toLocaleString();
+}
+
+function openBudgetDetail(id) {
+  _editBudgetId = id;
+  const b = state.budget.find(x=>x.id===id); if(!b) return;
+  document.getElementById('ab-item').value = b.item;
+  document.getElementById('ab-amount').value = b.amount;
+  document.getElementById('ab-modal-title').textContent = 'Edit budget item';
+  document.getElementById('ab-btn-delete').style.display = '';
+  document.getElementById('ab-btn-save').textContent = 'Save';
+  openModal('modal-add-budget');
+}
+
+function openAddBudget() {
+  _editBudgetId = null;
+  document.getElementById('ab-item').value = '';
+  document.getElementById('ab-amount').value = '';
+  document.getElementById('ab-modal-title').textContent = 'Budget item';
+  document.getElementById('ab-btn-delete').style.display = 'none';
+  document.getElementById('ab-btn-save').textContent = 'Add';
+  openModal('modal-add-budget');
+}
+
+function saveAddBudget() {
+  const item = document.getElementById('ab-item').value.trim();
+  const amount = parseFloat(document.getElementById('ab-amount').value);
+  if(!item || isNaN(amount)){ toast('Fill in all fields'); return; }
+  if (_editBudgetId) {
+    const b = state.budget.find(x=>x.id===_editBudgetId);
+    if(b){ b.item=item; b.amount=amount; }
+    toast('Item saved');
+  } else {
+    state.budget.push({id:DB.id(), item, amount});
+    toast('Item added');
+  }
+  DB.set('budget', state.budget);
+  _editBudgetId = null;
+  closeModal('modal-add-budget');
+  renderBudget();
+}
+
+function deleteBudgetItem() {
+  if(!_editBudgetId) return;
+  if(!confirm('Delete this budget item?')) return;
+  state.budget = state.budget.filter(x=>x.id!==_editBudgetId);
+  DB.set('budget', state.budget);
+  _editBudgetId = null;
+  closeModal('modal-add-budget');
+  renderBudget();
+  toast('Item deleted');
 }
 
 function openAddJob() {
@@ -767,32 +836,58 @@ function renderPriceList() {
   state.prices.forEach(p=>{ (byStore[p.store]=byStore[p.store]||[]).push(p); });
   list.innerHTML = Object.keys(byStore).sort().map(store=>{
     const items = byStore[store].map(p=>`
-      <div class="price-item">
-        ${p.photo ? `<img class="price-thumb" src="${p.photo}" onclick="openPricePhoto('${p.id}')" alt="price tag"/>` : `<div class="price-thumb-placeholder">${SVG.tag}</div>`}
-        <div class="price-item-info"><div class="price-item-name">${esc(p.name)}</div><div class="price-item-meta">${p.date}</div></div>
+      <div class="price-item" onclick="openPriceDetail('${p.id}')" style="cursor:pointer;">
+        ${p.photo ? `<img class="price-thumb" src="${p.photo}" alt="price tag"/>` : `<div class="price-thumb-placeholder">${SVG.tag}</div>`}
+        <div class="price-item-info">
+          <div class="price-item-name">${esc(p.name)}</div>
+          <div class="price-item-meta">${esc(p.store)} · ${p.date}</div>
+        </div>
         <div class="price-item-price">$${Number(p.price).toFixed(2)}</div>
-        <button class="btn-icon" onclick="deletePrice('${p.id}')">${SVG.trash}</button>
+        <span style="font-size:11px;color:var(--text3);padding:4px;">✎</span>
       </div>`).join('');
     return `<div class="store-group"><div class="store-label">${esc(store)} <span>${byStore[store].length} item${byStore[store].length!==1?'s':''}</span></div>${items}</div>`;
   }).join('');
 }
 
-function deletePrice(id) { state.prices=state.prices.filter(x=>x.id!==id); DB.set('prices',state.prices); renderScanner(); toast('Item deleted'); }
-
-function openPricePhoto(id) {
-  const p=state.prices.find(x=>x.id===id); if(!p||!p.photo) return;
-  document.getElementById('view-img').src=p.photo;
-  document.getElementById('view-label').textContent=p.name+' — $'+Number(p.price).toFixed(2);
-  document.getElementById('view-delete').onclick=()=>closeModal('modal-view-photo');
-  openModal('modal-view-photo');
+function openPriceDetail(id) {
+  _editPriceId = id;
+  const p = state.prices.find(x=>x.id===id); if(!p) return;
+  document.getElementById('ap-name').value = p.name;
+  document.getElementById('ap-price').value = p.price;
+  document.getElementById('ap-store').value = p.store;
+  const prev = document.getElementById('ap-preview');
+  if(p.photo){ state.lastScanImage=p.photo; prev.src=p.photo; prev.style.display='block'; }
+  else { state.lastScanImage=null; prev.src=''; prev.style.display='none'; }
+  document.getElementById('ap-modal-title').textContent = 'Edit price';
+  document.getElementById('ap-btn-delete').style.display = '';
+  document.getElementById('ap-btn-save').textContent = 'Save';
+  openModal('modal-add-price');
 }
 
 function openScanModal(photoData) {
-  state.lastScanImage=photoData||null;
-  document.getElementById('ap-name').value=''; document.getElementById('ap-price').value=''; document.getElementById('ap-store').value='';
-  const prev=document.getElementById('ap-preview');
-  if(photoData){prev.src=photoData;prev.style.display='block';}else{prev.src='';prev.style.display='none';}
+  _editPriceId = null;
+  state.lastScanImage = photoData || null;
+  document.getElementById('ap-name').value='';
+  document.getElementById('ap-price').value='';
+  document.getElementById('ap-store').value='';
+  const prev = document.getElementById('ap-preview');
+  if(photoData){ prev.src=photoData; prev.style.display='block'; }
+  else { prev.src=''; prev.style.display='none'; }
+  document.getElementById('ap-modal-title').textContent = 'Add price';
+  document.getElementById('ap-btn-delete').style.display = 'none';
+  document.getElementById('ap-btn-save').textContent = 'Save';
   openModal('modal-add-price');
+}
+
+function deletePrice() {
+  if(!_editPriceId) return;
+  if(!confirm('Delete this item?')) return;
+  state.prices = state.prices.filter(x=>x.id!==_editPriceId);
+  DB.set('prices',state.prices);
+  _editPriceId=null;
+  closeModal('modal-add-price');
+  renderScanner();
+  toast('Item deleted');
 }
 
 function handleScanInput(input) {
@@ -810,13 +905,23 @@ function handleScanInput(input) {
 }
 
 function savePrice() {
-  const name=document.getElementById('ap-name').value.trim();
-  const price=parseFloat(document.getElementById('ap-price').value);
-  const store=document.getElementById('ap-store').value.trim()||'Unknown';
-  if(!name||isNaN(price)||price<0){toast('Fill in name and price');return;}
-  state.prices.push({id:DB.id(),name,price,currency:'CAD',store,date:new Date().toLocaleDateString('en-CA'),photo:state.lastScanImage});
-  DB.set('prices',state.prices); state.lastScanImage=null;
-  closeModal('modal-add-price'); renderScanner(); toast(`Saved: ${name} — $${price.toFixed(2)}`);
+  const name = document.getElementById('ap-name').value.trim();
+  const price = parseFloat(document.getElementById('ap-price').value);
+  const store = document.getElementById('ap-store').value.trim() || 'Unknown';
+  if(!name || isNaN(price) || price < 0){ toast('Fill in name and price'); return; }
+  if (_editPriceId) {
+    const p = state.prices.find(x=>x.id===_editPriceId);
+    if (p) { p.name=name; p.price=price; p.store=store; if(state.lastScanImage) p.photo=state.lastScanImage; }
+    toast('Price saved');
+  } else {
+    state.prices.push({id:DB.id(),name,price,currency:'CAD',store,date:new Date().toLocaleDateString('en-CA'),photo:state.lastScanImage});
+    toast(`Saved: ${name} — $${price.toFixed(2)}`);
+  }
+  DB.set('prices', state.prices);
+  _editPriceId = null;
+  state.lastScanImage = null;
+  closeModal('modal-add-price');
+  renderScanner();
 }
 
 // ══════════════════════════════════════════════
