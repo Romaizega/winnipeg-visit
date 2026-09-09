@@ -102,7 +102,7 @@
           <table class="budget-table"><tbody id="budget-body"></tbody></table>
           <div class="budget-total"><span>Total</span><span id="budget-total"></span></div>
         </div>
-        <button class="btn-add" onclick="openModal('modal-add-budget')">
+        <button class="btn-add" onclick="openAddBudget()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M12 5v14M5 12h14"/></svg>Add budget item
         </button>
       </div>
@@ -190,12 +190,16 @@
 </div></div>
 
 <div id="modal-add-job" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
-  <div class="modal-title">Company / Job</div>
+  <div class="modal-title" id="aj-modal-title">Company / Job</div>
   <div class="form-group"><label class="form-label">Company *</label><input id="aj-company" class="form-input" placeholder="Bell MTS"/></div>
   <div class="form-group"><label class="form-label">Salary range</label><input id="aj-salary" class="form-input" placeholder="$85,000–105,000 CAD"/></div>
   <div class="form-group"><label class="form-label">Requirements</label><input id="aj-requirements" class="form-input" placeholder="P.Eng., LTE/5G..."/></div>
   <div class="form-group"><label class="form-label">Notes</label><textarea id="aj-notes" class="form-input"></textarea></div>
-  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-job')">Cancel</button><button class="btn-primary" onclick="saveAddJob()">Add</button></div>
+  <div class="modal-actions">
+    <button id="aj-btn-delete" class="btn-danger" onclick="deleteJob()" style="display:none;">Delete</button>
+    <button class="btn-cancel" onclick="closeModal('modal-add-job')">Cancel</button>
+    <button id="aj-btn-save" class="btn-primary" onclick="saveAddJob()">Add</button>
+  </div>
 </div></div>
 
 <div id="modal-district" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
@@ -209,19 +213,27 @@
 </div></div>
 
 <div id="modal-add-budget" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
-  <div class="modal-title">Budget item</div>
+  <div class="modal-title" id="ab-modal-title">Budget item</div>
   <div class="form-group"><label class="form-label">Item</label><input id="ab-item" class="form-input" placeholder="Childcare"/></div>
   <div class="form-group"><label class="form-label">Amount (CAD/month)</label><input id="ab-amount" type="number" step="0.01" class="form-input" placeholder="300"/></div>
-  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-budget')">Cancel</button><button class="btn-primary" onclick="saveAddBudget()">Add</button></div>
+  <div class="modal-actions">
+    <button id="ab-btn-delete" class="btn-danger" onclick="deleteBudgetItem()" style="display:none;">Delete</button>
+    <button class="btn-cancel" onclick="closeModal('modal-add-budget')">Cancel</button>
+    <button id="ab-btn-save" class="btn-primary" onclick="saveAddBudget()">Add</button>
+  </div>
 </div></div>
 
 <div id="modal-add-price" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
-  <div class="modal-title">Add price</div>
+  <div class="modal-title" id="ap-modal-title">Add price</div>
   <img id="ap-preview" src="" alt="price tag" style="width:100%;border-radius:8px;margin-bottom:12px;display:none;max-height:200px;object-fit:contain;background:var(--bg3);"/>
   <div class="form-group"><label class="form-label">Item name *</label><input id="ap-name" class="form-input" placeholder="Milk 4L"/></div>
   <div class="form-group"><label class="form-label">Price (CAD) *</label><input id="ap-price" type="number" step="0.01" min="0" class="form-input" placeholder="5.49"/></div>
   <div class="form-group"><label class="form-label">Store</label><input id="ap-store" class="form-input" placeholder="Costco"/></div>
-  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-price')">Cancel</button><button class="btn-primary" onclick="savePrice()">Save</button></div>
+  <div class="modal-actions">
+    <button id="ap-btn-delete" class="btn-danger" onclick="deletePrice()" style="display:none;">Delete</button>
+    <button class="btn-cancel" onclick="closeModal('modal-add-price')">Cancel</button>
+    <button id="ap-btn-save" class="btn-primary" onclick="savePrice()">Save</button>
+  </div>
 </div></div>
 
 <div id="modal-link-contact" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
@@ -238,17 +250,6 @@
 
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>
-<script>
-function saveAddBudget() {
-  const item = document.getElementById('ab-item').value.trim();
-  const amount = parseFloat(document.getElementById('ab-amount').value);
-  if (!item || isNaN(amount)) { toast('Fill in all fields'); return; }
-  state.budget.push({ id: DB.id(), item, amount });
-  DB.set('budget', state.budget);
-  closeModal('modal-add-budget');
-  renderBudget();
-  toast('Budget item added');
-}
-</script>
+
 </body>
 </html>
