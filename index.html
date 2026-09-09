@@ -105,6 +105,13 @@
         <button class="btn-add" onclick="openAddBudget()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M12 5v14M5 12h14"/></svg>Add budget item
         </button>
+        <div class="section-head">Backup & Restore</div>
+        <div class="card" style="padding:14px;">
+          <div style="font-size:13px;line-height:1.45;margin-bottom:12px;color:var(--muted);">Export a full backup of meetings, contacts, budget, prices, photos and voice notes. Keep it in Files, Drive or on another device.</div>
+          <button class="btn-add" type="button" onclick="exportBackup()">Export backup</button>
+          <input id="backup-input" type="file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
+          <button class="btn-add" type="button" style="margin-top:8px;" onclick="document.getElementById('backup-input').click()">Import / Restore backup</button>
+        </div>
       </div>
     </div>
 
