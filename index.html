@@ -85,6 +85,12 @@
       <div class="scroll-area"><div id="contacts-list"></div></div>
     </div>
 
+    <!-- NOTES -->
+    <div id="notes" class="screen">
+      <div class="screen-header"><div class="screen-title">Notes</div><button class="header-btn" onclick="openNoteEditor()">+ Add note</button></div>
+      <div class="scroll-area"><div id="notes-list" style="padding:14px;"></div></div>
+    </div>
+
     <!-- 3: DATA -->
     <div id="data" class="screen">
       <div class="screen-header">
@@ -153,6 +159,9 @@
     <button class="nav-tab" data-tab="data" onclick="setTab('data')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Data
     </button>
+    <button class="nav-tab" data-tab="notes" onclick="setTab('notes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5"/></svg>Notes
+    </button>
     <button class="nav-tab" data-tab="scanner" onclick="setTab('scanner')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Prices
     </button>
@@ -160,6 +169,19 @@
 </div>
 
 <!-- ══ MODALS ══ -->
+<div id="modal-note" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+  <div class="modal-title" id="note-modal-title">New note</div>
+  <label style="display:block;margin:12px 0 5px;">Title</label>
+  <input id="note-title" type="text" maxlength="150" placeholder="e.g. Questions for RBC" style="width:100%;box-sizing:border-box;"/>
+  <label style="display:block;margin:12px 0 5px;">Note</label>
+  <textarea id="note-text" rows="9" placeholder="Write anything here..." style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+  <div class="modal-actions" style="flex-wrap:wrap;">
+    <button class="btn-danger" id="note-delete" onclick="deleteNote()" style="display:none;">Delete</button>
+    <button class="btn-cancel" onclick="closeModal('modal-note')">Cancel</button>
+    <button class="btn-primary" onclick="saveNote()">Save</button>
+  </div>
+</div></div>
+
 
 <div id="modal-add-meeting" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
   <div class="modal-title" id="meeting-modal-title">New meeting</div>
