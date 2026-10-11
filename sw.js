@@ -1,4 +1,4 @@
-const CACHE = 'wpg-v3';
+const CACHE = 'wpg-edit-v3';
 const ASSETS = ['/', '/index.html', '/style.css', '/app.js', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
