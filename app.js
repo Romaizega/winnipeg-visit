@@ -1331,7 +1331,7 @@ function importBackupFile(input) {
 //  INIT
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
   try {
     await DB.init();
     for (const key of DB_KEYS) state[key] = DB.get(key, []);
