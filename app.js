@@ -936,16 +936,6 @@ function deleteBudgetItem() {
   toast('Item deleted');
 }
 
-function openAddJob() {
-  ['aj-company','aj-salary','aj-requirements','aj-notes'].forEach(id=>document.getElementById(id).value='');
-  resetJobModal();
-  openModal('modal-add-job');
-}
-function saveAddJob() {
-  const company = document.getElementById('aj-company').value.trim(); if(!company){toast('Enter company name');return;}
-  state.jobData.push({id:DB.id(),company,salary:document.getElementById('aj-salary').value.trim(),requirements:document.getElementById('aj-requirements').value.trim(),notes:document.getElementById('aj-notes').value.trim()});
-  DB.set('jobData',state.jobData);closeModal('modal-add-job');renderData();toast('Company added');
-}
 function openDistrictDetail(id) {
   const d=state.districts.find(x=>x.id===id)||{};
   document.getElementById('dd-name').value=d.name||''; document.getElementById('dd-rent').value=d.rent||'';
