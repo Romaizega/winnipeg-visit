@@ -1338,6 +1338,58 @@ async function deleteNote() {
 }
 
 // ══════════════════════════════════════════════
+//  NOTES
+// ══════════════════════════════════════════════
+let _editNoteId = null;
+function renderNotes() {
+  const el = document.getElementById('notes-list');
+  if (!el) return;
+  el.replaceChildren();
+  const notes = Array.isArray(state.notes) ? state.notes : [];
+  if (!notes.length) { el.textContent = 'No notes yet. Tap + Add note.'; return; }
+  for (const n of notes.slice().reverse()) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card';
+    btn.style.cssText = 'display:block;width:100%;text-align:left;color:inherit;cursor:pointer;border:1px solid var(--border, #444);margin-bottom:10px;padding:14px;';
+    const title = document.createElement('strong');
+    title.textContent = n.title || 'Untitled note';
+    const preview = document.createElement('div');
+    preview.style.cssText = 'white-space:pre-wrap;margin-top:8px;opacity:.75;font-size:13px;';
+    preview.textContent = (n.text || '').slice(0,180);
+    btn.append(title,preview);
+    btn.addEventListener('click', () => openNoteEditor(n.id));
+    el.append(btn);
+  }
+}
+function openNoteEditor(id = null) {
+  _editNoteId = id;
+  const n = (state.notes || []).find(x => x.id === id);
+  document.getElementById('note-title').value = n?.title || '';
+  document.getElementById('note-text').value = n?.text || '';
+  document.getElementById('note-modal-title').textContent = n ? 'Edit note' : 'New note';
+  document.getElementById('note-delete').style.display = n ? '' : 'none';
+  openModal('modal-note');
+}
+async function saveNote() {
+  const title = document.getElementById('note-title').value.trim();
+  const text = document.getElementById('note-text').value.trim();
+  if (!title && !text) { toast('Enter a title or note'); return; }
+  const updated = [...(state.notes || [])];
+  const idx = updated.findIndex(n => n.id === _editNoteId);
+  const item = { id: idx >= 0 ? updated[idx].id : DB.id(), title, text, updatedAt: new Date().toISOString() };
+  if (idx >= 0) updated[idx] = item; else updated.push(item);
+  try { await DB.setAsync('notes', updated); state.notes = updated; closeModal('modal-note'); renderNotes(); toast('Note saved'); }
+  catch(e) { console.error(e); toast('Could not save note'); }
+}
+async function deleteNote() {
+  if (!_editNoteId || !confirm('Delete this note?')) return;
+  const updated = (state.notes || []).filter(n => n.id !== _editNoteId);
+  try { await DB.setAsync('notes', updated); state.notes = updated; closeModal('modal-note'); renderNotes(); toast('Note deleted'); }
+  catch(e) { console.error(e); toast('Could not delete note'); }
+}
+
+// ══════════════════════════════════════════════
 //  BACKUP / RESTORE
 // ══════════════════════════════════════════════
 function exportBackup() {
@@ -1395,6 +1447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     toast('Local database could not be opened');
   }
   seedData();
+  if (!Array.isArray(state.notes)) state.notes = [];
   await compactStoredImages();
   setTab('agenda');
 });
