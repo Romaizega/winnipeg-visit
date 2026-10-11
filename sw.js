@@ -1,4 +1,4 @@
-const CACHE = 'wpg-edit-v5';
+const CACHE = 'wpg-edit-v6';
 const BASE = self.registration.scope;
 const ASSETS = ['','index.html','app.js','manifest.json','icons/icon-192.png','icons/icon-512.png'].map(p => new URL(p, BASE).href);
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS))); self.skipWaiting(); });
