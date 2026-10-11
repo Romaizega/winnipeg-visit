@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════
 //  STORAGE
 // ══════════════════════════════════════════════
-const DB_KEYS = ['meetings','contacts','districts','budget','jobData','prices'];
+const DB_KEYS = ['meetings','contacts','districts','budget','jobData','prices','notes'];
 const DB = {
   _db: null,
   _cache: Object.create(null),
@@ -140,6 +140,7 @@ const state = {
   budget:    DB.get('budget'),
   jobData:   DB.get('jobData'),
   prices:    DB.get('prices'),
+  notes:     DB.get('notes'),
   // navigation
   view: 'agenda',          // 'agenda' | 'meeting' | scanner screens
   activeTab: 'agenda',
@@ -806,10 +807,11 @@ function renderJobData() {
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:5px;">${esc(j.requirements)}</div>
       ${j.notes?`<div style="font-size:12px;color:var(--text3);">${esc(j.notes)}</div>`:''}
-    </div>`).join('') + `<button class="btn-add" onclick="openAddJob()">${SVG.plus} Add company</button>`;
+    </div>`).join('') + `<button class="btn-add" type="button" onclick="openAddJob()">${SVG.plus} Add company</button>`;
 }
 
 function openJobDetail(id) {
+  ensureJobModal();
   _editJobId = id;
   const j = state.jobData.find(x=>x.id===id); if(!j) return;
   document.getElementById('aj-company').value = j.company;
@@ -822,7 +824,22 @@ function openJobDetail(id) {
   openModal('modal-add-job');
 }
 
+function ensureJobModal() {
+  if (document.getElementById('modal-add-job')) return true;
+  const html = `<div id="modal-add-job" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
+    <div class="modal-title" id="aj-modal-title">Company / Job</div>
+    <div class="form-group"><label class="form-label">Company *</label><input id="aj-company" class="form-input" placeholder="Company name" /></div>
+    <div class="form-group"><label class="form-label">Salary range</label><input id="aj-salary" class="form-input" /></div>
+    <div class="form-group"><label class="form-label">Requirements</label><input id="aj-requirements" class="form-input" /></div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea id="aj-notes" class="form-input"></textarea></div>
+    <div class="modal-actions"><button id="aj-btn-delete" class="btn-danger" onclick="deleteJob()" style="display:none">Delete</button><button class="btn-cancel" onclick="closeModal('modal-add-job')">Cancel</button><button id="aj-btn-save" class="btn-primary" onclick="saveAddJob()">Add</button></div>
+  </div></div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  return true;
+}
+
 function openAddJob() {
+  ensureJobModal();
   _editJobId = null;
   ['aj-company','aj-salary','aj-requirements','aj-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('aj-modal-title').textContent = 'Company / Job';
@@ -832,6 +849,7 @@ function openAddJob() {
 }
 
 function saveAddJob() {
+  ensureJobModal();
   const company = document.getElementById('aj-company').value.trim();
   if(!company){toast('Enter company name');return;}
   const salary = document.getElementById('aj-salary').value.trim();
@@ -1270,7 +1288,54 @@ const SVG = {
 // ══════════════════════════════════════════════
 //  RENDER MAP
 // ══════════════════════════════════════════════
-const renders = { agenda:renderAgenda, contacts:renderContacts, data:renderData, scanner:renderScanner };
+const renders = { agenda:renderAgenda, contacts:renderContacts, data:renderData, scanner:renderScanner, notes:renderNotes };
+
+// ══════════════════════════════════════════════
+//  NOTES (IndexedDB; included in backup)
+// ══════════════════════════════════════════════
+let editingNoteId = null;
+function renderNotes() {
+  const list = document.getElementById('notes-list');
+  if (!list) return;
+  list.replaceChildren();
+  const notes = Array.isArray(state.notes) ? [...state.notes].reverse() : [];
+  if (!notes.length) { const p=document.createElement('p');p.textContent='No notes yet. Tap + Add note to write one.';list.appendChild(p);return; }
+  notes.forEach(note => {
+    const btn=document.createElement('button');btn.type='button';
+    btn.style.cssText='display:block;width:100%;text-align:left;padding:14px;margin-bottom:10px;border:1px solid var(--border,#444);border-radius:12px;background:var(--card,#1e222c);color:var(--text,#fff);cursor:pointer;';
+    const title=document.createElement('strong');title.textContent=note.title||'Untitled note';title.style.cssText='display:block;font-size:16px;margin-bottom:7px;';
+    const body=document.createElement('div');body.textContent=(note.text||'').slice(0,180);body.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;opacity:.8;font-size:14px;';
+    btn.append(title,body);btn.addEventListener('click',()=>openNoteEditor(note.id));list.appendChild(btn);
+  });
+}
+function openNoteEditor(id=null) {
+  const note=id ? state.notes.find(n=>n.id===id) : null;
+  editingNoteId=note ? note.id : null;
+  document.getElementById('note-modal-title').textContent=note?'Edit note':'New note';
+  document.getElementById('note-title').value=note?.title||'';
+  document.getElementById('note-text').value=note?.text||'';
+  document.getElementById('note-delete').style.display=note?'':'none';
+  openModal('modal-note');
+}
+async function saveNote() {
+  const title=document.getElementById('note-title').value.trim();
+  const value=document.getElementById('note-text').value;
+  if (!title && !value.trim()) { toast('Write a title or note first'); return; }
+  const next=[...(state.notes||[])];
+  if (editingNoteId) {
+    const i=next.findIndex(n=>n.id===editingNoteId);
+    if(i<0) {toast('Note not found');return;}
+    next[i]={...next[i],title,text:value,updatedAt:new Date().toISOString()};
+  } else next.push({id:DB.id(),title,text:value,createdAt:new Date().toISOString()});
+  try {await DB.setAsync('notes',next);state.notes=next;closeModal('modal-note');renderNotes();toast('Note saved');}
+  catch(e){console.error(e);toast('Could not save note');}
+}
+async function deleteNote() {
+  if(!editingNoteId || !confirm('Delete this note?')) return;
+  const next=state.notes.filter(n=>n.id!==editingNoteId);
+  try {await DB.setAsync('notes',next);state.notes=next;closeModal('modal-note');renderNotes();toast('Note deleted');}
+  catch(e){console.error(e);toast('Could not delete note');}
+}
 
 // ══════════════════════════════════════════════
 //  BACKUP / RESTORE
