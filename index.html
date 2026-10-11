@@ -161,7 +161,7 @@
 <!-- ══ MODALS ══ -->
 
 <div id="modal-add-meeting" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
-  <div class="modal-title">New meeting</div>
+  <div class="modal-title" id="meeting-modal-title">New meeting</div>
   <div class="form-group"><label class="form-label">Name *</label><input id="am-name" class="form-input" placeholder="Bell MTS — RF Engineer"/></div>
   <div class="form-group"><label class="form-label">Organisation</label><input id="am-org" class="form-input" placeholder="Bell MTS"/></div>
   <div class="form-row">
@@ -169,7 +169,7 @@
     <div class="form-group"><label class="form-label">Time</label><input id="am-time" type="time" class="form-input"/></div>
   </div>
   <div class="form-group"><label class="form-label">Initial notes</label><textarea id="am-notes" class="form-input" placeholder="What this meeting is about..."></textarea></div>
-  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-meeting')">Cancel</button><button class="btn-primary" onclick="saveAddMeeting()">Add</button></div>
+  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-add-meeting')">Cancel</button><button class="btn-primary" id="meeting-modal-save" onclick="saveAddMeeting()">Add</button></div>
 </div></div>
 
 <div id="modal-add-contact" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal">
