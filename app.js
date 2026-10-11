@@ -312,7 +312,26 @@ function renderAgenda() {
   }).join('');
 }
 
+let editingMeetingId = null;
+
+function openEditMeeting() {
+  const m = state.meetings.find(x => x.id === state.currentMeetingId);
+  if (!m) return;
+  editingMeetingId = m.id;
+  document.getElementById('am-name').value = m.name || '';
+  document.getElementById('am-org').value = m.org || '';
+  document.getElementById('am-date').value = m.date || '';
+  document.getElementById('am-time').value = m.time || '';
+  document.getElementById('am-notes').value = m.notes || '';
+  document.getElementById('meeting-modal-title').textContent = 'Edit meeting';
+  document.getElementById('meeting-modal-save').textContent = 'Save changes';
+  openModal('modal-add-meeting');
+}
+
 function openAddMeeting() {
+  editingMeetingId = null;
+  document.getElementById('meeting-modal-title').textContent = 'New meeting';
+  document.getElementById('meeting-modal-save').textContent = 'Add';
   ['am-name','am-org','am-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('am-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('am-time').value = '10:00';
@@ -327,6 +346,17 @@ function saveAddMeeting() {
     : k.includes('egm')||k.includes('engineer') ? '⚙️'
     : k.includes('school')||k.includes('univer')||k.includes('asper') ? '🏛️' : '📅';
   const m = { id:DB.id(), name, org:document.getElementById('am-org').value.trim(), date:document.getElementById('am-date').value, time:document.getElementById('am-time').value, status:'plan', notes:document.getElementById('am-notes').value, photos:[], audios:[], contactId:null, icon };
+  if (editingMeetingId) {
+    const existing = state.meetings.find(x => x.id === editingMeetingId);
+    if (!existing) { toast('Meeting not found'); return; }
+    Object.assign(existing, { name:m.name, org:m.org, date:m.date, time:m.time, notes:m.notes, icon:m.icon });
+    DB.set('meetings', state.meetings);
+    closeModal('modal-add-meeting');
+    editingMeetingId = null;
+    renderMeetingDetail(existing);
+    toast('Meeting updated');
+    return;
+  }
   state.meetings.push(m);
   DB.set('meetings', state.meetings);
   closeModal('modal-add-meeting');
