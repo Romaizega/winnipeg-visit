@@ -116,6 +116,7 @@
         <div class="card" style="padding:14px;">
           <div style="font-size:13px;line-height:1.45;margin-bottom:12px;color:var(--muted);">Export a full backup of meetings, contacts, budget, prices, photos and voice notes. Keep it in Files, Drive or on another device.</div>
           <button class="btn-add" type="button" onclick="exportBackup()">Export backup</button>
+          <button class="btn-add" id="download-all-photos" type="button" style="margin-top:8px" onclick="downloadAllPhotos()">📸 Download all photos (ZIP)</button>
           <input id="backup-input" type="file" accept="application/json,.json" style="display:none" onchange="importBackupFile(this)">
           <button class="btn-add" type="button" style="margin-top:8px;" onclick="document.getElementById('backup-input').click()">Import / Restore backup</button>
         </div>
@@ -280,7 +281,7 @@
 <div id="modal-view-photo" class="modal-overlay" onclick="onOverlayClick(event)"><div class="modal" style="padding-top:12px;">
   <img id="view-img" src="" alt="" style="width:100%;border-radius:10px;margin-bottom:12px;max-height:60dvh;object-fit:contain;"/>
   <div id="view-label" style="font-size:14px;color:var(--text2);margin-bottom:12px;"></div>
-  <div class="modal-actions"><button class="btn-cancel" onclick="closeModal('modal-view-photo')">Close</button><button class="btn-danger" id="view-delete">Delete</button></div>
+  <div class="modal-actions"><button class="btn-primary" id="view-download" type="button">⬇ Download</button><button class="btn-cancel" onclick="closeModal('modal-view-photo')">Close</button><button class="btn-danger" id="view-delete">Delete</button></div>
 </div></div>
 
 <div id="toast" class="toast"></div>
