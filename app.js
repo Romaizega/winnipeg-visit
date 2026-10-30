@@ -511,6 +511,7 @@ function viewMeetingPhoto(meetingId, idx) {
     renderMeetingPhotos(m);
     toast('Photo deleted');
   };
+  document.getElementById('view-download').onclick = () => downloadStoredPhoto(p.data, photoFilename(m.name, p.label, idx));
   openModal('modal-view-photo');
 }
 
@@ -1387,6 +1388,121 @@ async function deleteNote() {
   const updated = (state.notes || []).filter(n => n.id !== _editNoteId);
   try { await DB.setAsync('notes', updated); state.notes = updated; closeModal('modal-note'); renderNotes(); toast('Note deleted'); }
   catch(e) { console.error(e); toast('Could not delete note'); }
+}
+
+// ══════════════════════════════════════════════
+//  PHOTO EXPORT — read-only; does not modify IndexedDB
+// ══════════════════════════════════════════════
+function safePhotoName(value) {
+  return String(value || 'photo').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim().slice(0, 75) || 'photo';
+}
+function photoExtension(data) {
+  const type = String(data || '').match(/^data:image\/([a-zA-Z0-9.+-]+)[;,]/i)?.[1]?.toLowerCase();
+  return ({jpeg:'jpg',jpg:'jpg',png:'png',webp:'webp',gif:'gif',bmp:'bmp',heic:'heic',heif:'heif',avif:'avif'})[type] || 'jpg';
+}
+function photoFilename(meeting, label, index, data) {
+  const ext = photoExtension(data);
+  const base = safePhotoName(label || `photo-${String(index+1).padStart(3,'0')}`).replace(/\.[^.]+$/, '');
+  return `${safePhotoName(meeting)}_${String(index+1).padStart(3,'0')}_${base}.${ext}`;
+}
+function dataUrlToBytes(data) {
+  if (typeof data !== 'string' || !/^data:image\/[\w.+-]+;base64,/i.test(data)) throw Error('Unsupported image data');
+  const raw = atob(data.slice(data.indexOf(',')+1));
+  const bytes = new Uint8Array(raw.length);
+  for (let i=0; i<raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+function triggerPhotoDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function downloadStoredPhoto(data, filename) {
+  try {
+    const bytes = dataUrlToBytes(data);
+    const mime = data.slice(5, data.indexOf(';'));
+    triggerPhotoDownload(new Blob([bytes], {type:mime}), filename);
+    toast('Photo download started');
+  } catch(e) { console.error(e); toast('Could not download this photo'); }
+}
+// Minimal standards-compliant ZIP writer (STORE method). No CDN or internet needed.
+function zipCrc32(bytes) {
+  let crc = -1;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let k=0; k<8; k++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  return (crc ^ -1) >>> 0;
+}
+function buildPhotoZip(files) {
+  const encoder = new TextEncoder();
+  const chunks = [], central = [];
+  let offset = 0;
+  for (const file of files) {
+    const name = encoder.encode(file.name);
+    const data = file.bytes;
+    const crc = zipCrc32(data);
+    const local = new Uint8Array(30+name.length);
+    const l = new DataView(local.buffer);
+    l.setUint32(0,0x04034b50,true); l.setUint16(4,20,true);
+    l.setUint16(6,0x0800,true); l.setUint32(14,crc,true);
+    l.setUint32(18,data.length,true); l.setUint32(22,data.length,true);
+    l.setUint16(26,name.length,true); local.set(name,30);
+    chunks.push(local,data);
+    const record = new Uint8Array(46+name.length);
+    const c = new DataView(record.buffer);
+    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true);
+    c.setUint16(6,20,true); c.setUint16(8,0x0800,true);
+    c.setUint32(16,crc,true); c.setUint32(20,data.length,true);
+    c.setUint32(24,data.length,true); c.setUint16(28,name.length,true);
+    c.setUint32(42,offset,true); record.set(name,46);
+    central.push(record);
+    offset += local.length+data.length;
+  }
+  const directorySize = central.reduce((n,part)=>n+part.length,0);
+  const end = new Uint8Array(22); const e = new DataView(end.buffer);
+  e.setUint32(0,0x06054b50,true);
+  e.setUint16(8,files.length,true); e.setUint16(10,files.length,true);
+  e.setUint32(12,directorySize,true); e.setUint32(16,offset,true);
+  return new Blob([...chunks,...central,end],{type:'application/zip'});
+}
+async function downloadAllPhotos() {
+  const button = document.getElementById('download-all-photos');
+  if (button?.disabled) return;
+  if (button) { button.disabled = true; button.textContent = 'Preparing photos…'; }
+  try {
+    const files = []; let skipped = 0;
+    const meetings = Array.isArray(state.meetings) ? state.meetings : [];
+    const prices = Array.isArray(state.prices) ? state.prices : [];
+    for (const meeting of meetings) {
+      for (const [index,photo] of (meeting.photos||[]).entries()) {
+        try {
+          files.push({name:`Meetings/${photoFilename(meeting.name,photo.label,index,photo.data)}`,bytes:dataUrlToBytes(photo.data)});
+        } catch(err) { skipped++; console.warn('Skipped meeting photo',err); }
+      }
+    }
+    for (const [index,price] of prices.entries()) {
+      if (!price.photo) continue;
+      try {
+        const ext=photoExtension(price.photo);
+        files.push({name:`Prices/${safePhotoName(price.store)}_${String(index+1).padStart(3,'0')}_${safePhotoName(price.name)}.${ext}`,bytes:dataUrlToBytes(price.photo)});
+      } catch(err) { skipped++; console.warn('Skipped price photo',err); }
+    }
+    if (!files.length) { toast('No downloadable photos found'); return; }
+    if (files.length > 65535) throw Error('Too many photos for ZIP');
+    // Distinct names even when multiple photos have the same label.
+    const used = new Set();
+    for (const file of files) {
+      const original=file.name; let suffix=2;
+      while (used.has(file.name)) file.name=original.replace(/(\.[^.]+)$/,`_${suffix++}$1`);
+      used.add(file.name);
+    }
+    const blob = buildPhotoZip(files);
+    triggerPhotoDownload(blob,`winnipeg-photos-${new Date().toISOString().slice(0,10)}.zip`);
+    toast(`${files.length} photos exported${skipped ? `; ${skipped} skipped` : ''}`);
+  } catch(err) { console.error(err); toast('Could not create ZIP; try individual photos'); }
+  finally { if (button) { button.disabled=false; button.textContent='📸 Download all photos (ZIP)'; } }
 }
 
 // ══════════════════════════════════════════════
